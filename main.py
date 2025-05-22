@@ -11,8 +11,10 @@ from googleapiclient.http import MediaFileUpload
 # ==== Configuration ====
 # Folders to zip
 directories_to_backup = [
-    'C:\\Users\\ArunShrestha\\Desktop\\test backup',
-    # '/path/to/folder2',
+    {
+        'name': 'School Management System',
+        'path': 'C:\\xampp\\htdocs\\uploads',
+    }
 ]
 # MySQL settings
 db_config = {
@@ -21,7 +23,7 @@ db_config = {
     'password': '',
 }
 # Databases to dump
-database_names = ['test']
+database_names = ['digital_sikshya']
 # Backup metadata table
 meta_db = 'backup'
 meta_table = 'tbl_backup'
@@ -82,14 +84,12 @@ def get_drive_service():
 def upload_to_drive(local_path, folder_id, service):
     """Uploads or updates a file in Google Drive folder."""
     filename = os.path.basename(local_path)
-    # Check if file exists
     query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
     resp = service.files().list(q=query, fields='files(id)').execute()
     files = resp.get('files', [])
     media = MediaFileUpload(local_path, resumable=True)
     if files:
-        file_id = files[0]['id']
-        return service.files().update(fileId=file_id, media_body=media).execute()
+        return service.files().update(fileId=files[0]['id'], media_body=media).execute()
     else:
         file_metadata = {'name': filename, 'parents': [folder_id]}
         return service.files().create(body=file_metadata, media_body=media).execute()
@@ -98,12 +98,12 @@ def upload_to_drive(local_path, folder_id, service):
 
 
 def backup_directories(service):
-    for path in directories_to_backup:
-        if not os.path.isdir(path):
+    for directory in directories_to_backup:
+        if not os.path.isdir(directory['path']):
             continue
-        name = os.path.basename(path)
+        name = directory['name']
         zip_name = f"{name}_{time.strftime('%Y%m%d')}.zip"
-        shutil.make_archive(zip_name[:-4], 'zip', path)
+        shutil.make_archive(zip_name[:-4], 'zip', directory['path'])
         h = compute_hash(zip_name)
         prev = get_previous_hash(zip_name)
         if h != prev:
@@ -115,8 +115,11 @@ def backup_directories(service):
 def backup_databases(service):
     for db in database_names:
         dump_file = f"{db}_{time.strftime('%Y%m%d')}.sql"
+        # Use reproducible dump without timestamps or comments
         cmd = [
             'mysqldump',
+            '--skip-dump-date',
+            '--skip-comments',
             f"-u{db_config['user']}",
             f"-p{db_config['password']}",
             db
