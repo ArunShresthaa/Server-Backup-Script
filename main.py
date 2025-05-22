@@ -4,32 +4,31 @@ import shutil
 import subprocess
 import time
 import pymysql
-import msal
-import requests
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 # ==== Configuration ====
 # Folders to zip
 directories_to_backup = [
-    '"C:\Users\ArunShrestha\Desktop\khwopa source code"'
-    # '/path/to/folder2',
+    '/path/to/folder1',
+    '/path/to/folder2',
 ]
 # MySQL settings
 db_config = {
     'host': 'localhost',
-    'user': 'root',
-    'password': '',
+    'user': 'username',
+    'password': 'password',
 }
 # Databases to dump
-database_names = ['test']
+database_names = ['db1', 'db2']
 # Backup metadata table
 meta_db = 'backup'
 meta_table = 'tbl_backup'
-# OneDrive / Microsoft Graph settings
-TENANT_ID = 'your_tenant_id'
-CLIENT_ID = 'your_client_id'
-CLIENT_SECRET = 'your_client_secret'
-SCOPES = ['https://graph.microsoft.com/.default']
-ONEDRIVE_FOLDER = '/backups'
+# Google Drive settings
+SERVICE_ACCOUNT_FILE = '/path/to/service-account.json'
+DRIVE_FOLDER_ID = 'your_drive_folder_id'
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # ==== Helper Functions ====
 
@@ -44,14 +43,13 @@ def compute_hash(path):
 
 
 def get_db_connection(database=None):
-    conn = pymysql.connect(
+    return pymysql.connect(
         host=db_config['host'],
         user=db_config['user'],
         password=db_config['password'],
         database=database,
         autocommit=True
     )
-    return conn
 
 
 def get_previous_hash(name):
@@ -74,38 +72,32 @@ def update_hash(name, new_hash):
     conn.close()
 
 
-def acquire_token():
-    app = msal.ConfidentialClientApplication(
-        CLIENT_ID,
-        authority=f'https://login.microsoftonline.com/{TENANT_ID}',
-        client_credential=CLIENT_SECRET
+def get_drive_service():
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES
     )
-    result = app.acquire_token_silent(SCOPES, account=None)
-    if not result:
-        result = app.acquire_token_for_client(scopes=SCOPES)
-    if 'access_token' in result:
-        return result['access_token']
-    else:
-        raise Exception(
-            f"Could not obtain access token: {result.get('error_description')}")
+    return build('drive', 'v3', credentials=creds)
 
 
-def upload_file_to_onedrive(local_path, remote_folder, token):
+def upload_to_drive(local_path, folder_id, service):
+    """Uploads or updates a file in Google Drive folder."""
     filename = os.path.basename(local_path)
-    endpoint = (
-        f"https://graph.microsoft.com/v1.0/me/drive/root:{remote_folder}/{filename}:/content"
-    )
-    headers = {'Authorization': f'Bearer {token}'}
-    with open(local_path, 'rb') as f:
-        resp = requests.put(endpoint, headers=headers, data=f)
-    resp.raise_for_status()
-    return resp.json()
+    # Check if file exists
+    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+    resp = service.files().list(q=query, fields='files(id)').execute()
+    files = resp.get('files', [])
+    media = MediaFileUpload(local_path, resumable=True)
+    if files:
+        file_id = files[0]['id']
+        return service.files().update(fileId=file_id, media_body=media).execute()
+    else:
+        file_metadata = {'name': filename, 'parents': [folder_id]}
+        return service.files().create(body=file_metadata, media_body=media).execute()
 
 # ==== Backup Tasks ====
 
 
-def backup_directories():
-    token = acquire_token()
+def backup_directories(service):
     for path in directories_to_backup:
         if not os.path.isdir(path):
             continue
@@ -113,15 +105,14 @@ def backup_directories():
         zip_name = f"{name}_{time.strftime('%Y%m%d')}.zip"
         shutil.make_archive(name, 'zip', path)
         h = compute_hash(zip_name)
-        prev_h = get_previous_hash(zip_name)
-        if h != prev_h:
-            upload_file_to_onedrive(zip_name, ONEDRIVE_FOLDER, token)
+        prev = get_previous_hash(zip_name)
+        if h != prev:
+            upload_to_drive(zip_name, DRIVE_FOLDER_ID, service)
             update_hash(zip_name, h)
         os.remove(zip_name)
 
 
-def backup_databases():
-    token = acquire_token()
+def backup_databases(service):
     for db in database_names:
         dump_file = f"{db}_{time.strftime('%Y%m%d')}.sql"
         cmd = [
@@ -133,16 +124,17 @@ def backup_databases():
         with open(dump_file, 'wb') as f:
             subprocess.run(cmd, stdout=f, check=True)
         h = compute_hash(dump_file)
-        prev_h = get_previous_hash(dump_file)
-        if h != prev_h:
-            upload_file_to_onedrive(dump_file, ONEDRIVE_FOLDER, token)
+        prev = get_previous_hash(dump_file)
+        if h != prev:
+            upload_to_drive(dump_file, DRIVE_FOLDER_ID, service)
             update_hash(dump_file, h)
         os.remove(dump_file)
 
 
 def main():
-    backup_directories()
-    backup_databases()
+    service = get_drive_service()
+    backup_directories(service)
+    backup_databases(service)
 
 
 if __name__ == '__main__':
