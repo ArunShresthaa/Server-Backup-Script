@@ -11,23 +11,23 @@ from googleapiclient.http import MediaFileUpload
 # ==== Configuration ====
 # Folders to zip
 directories_to_backup = [
-    '/path/to/folder1',
-    '/path/to/folder2',
+    'C:\\Users\\ArunShrestha\\Desktop\\test backup',
+    # '/path/to/folder2',
 ]
 # MySQL settings
 db_config = {
     'host': 'localhost',
-    'user': 'username',
-    'password': 'password',
+    'user': 'root',
+    'password': '',
 }
 # Databases to dump
-database_names = ['db1', 'db2']
+database_names = ['test']
 # Backup metadata table
 meta_db = 'backup'
 meta_table = 'tbl_backup'
 # Google Drive settings
-SERVICE_ACCOUNT_FILE = '/path/to/service-account.json'
-DRIVE_FOLDER_ID = 'your_drive_folder_id'
+SERVICE_ACCOUNT_FILE = 'service-account.json'
+DRIVE_FOLDER_ID = '1ycYMVz13jgzFuE9toVSkDdKpUeIMwU-s'
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # ==== Helper Functions ====
@@ -103,7 +103,7 @@ def backup_directories(service):
             continue
         name = os.path.basename(path)
         zip_name = f"{name}_{time.strftime('%Y%m%d')}.zip"
-        shutil.make_archive(name, 'zip', path)
+        shutil.make_archive(zip_name[:-4], 'zip', path)
         h = compute_hash(zip_name)
         prev = get_previous_hash(zip_name)
         if h != prev:
