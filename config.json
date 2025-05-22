@@ -1,6 +1,6 @@
 {
     "drive_folder_id": "1ycYMVz13jgzFuE9toVSkDdKpUeIMwU-s",
-    "meta_db": "backup_log",
+    "meta_db": "server_backup",
     "service_account_file": "service-account.json",
     "directories": [
         {
