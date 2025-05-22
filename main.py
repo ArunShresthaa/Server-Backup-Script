@@ -12,11 +12,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 # ==== Configuration ====
-with open('backup.json', 'r') as file:
-    backup_config = json.load(file)
-    directories_to_backup = backup_config['directories']
-    database_names = backup_config['databases']
+with open('config.json', 'r') as file:
+    config = json.load(file)
+    meta_db = config['meta_db']
+    DRIVE_FOLDER_ID = config['drive_folder_id']
+    SERVICE_ACCOUNT_FILE = config['service_account_file']
+    directories_to_backup = config['directories']
+    database_names = config['databases']
 
 db_config = {
     'host': os.getenv('DB_HOSTNAME'),
@@ -24,11 +28,8 @@ db_config = {
     'password': os.getenv('DB_PASSWORD')
 }
 
-meta_db = 'backup'
 meta_table = 'tbl_backup'
 
-SERVICE_ACCOUNT_FILE = 'service-account.json'
-DRIVE_FOLDER_ID = '1ycYMVz13jgzFuE9toVSkDdKpUeIMwU-s'
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # ==== Helper Functions ====

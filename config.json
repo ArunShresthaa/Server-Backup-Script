@@ -1,0 +1,14 @@
+{
+    "drive_folder_id": "1ycYMVz13jgzFuE9toVSkDdKpUeIMwU-s",
+    "meta_db": "backup_log",
+    "service_account_file": "service-account.json",
+    "directories": [
+        {
+            "name": "School Management System",
+            "path": "C:\\xampp\\htdocs\\uploads"
+        }
+    ],
+    "databases": [
+        "digital_sikshya"
+    ]
+}
