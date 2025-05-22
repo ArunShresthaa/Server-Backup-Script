@@ -1,4 +1,3 @@
 service-account.json
 .env
-directories.json
-databases.json
+backup.json

@@ -1,5 +1,5 @@
 import os
-import hashlib
+import xxhash
 import shutil
 import subprocess
 import time
@@ -13,22 +13,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ==== Configuration ====
-# Folders to zip
-with open('directories.json', 'r') as file:
-    directories_to_backup = json.load(file)
-# MySQL settings
+with open('backup.json', 'r') as file:
+    backup_config = json.load(file)
+    directories_to_backup = backup_config['directories']
+    database_names = backup_config['databases']
+
 db_config = {
     'host': os.getenv('DB_HOSTNAME'),
     'user': os.getenv('DB_USERNAME'),
     'password': os.getenv('DB_PASSWORD')
 }
-# Databases to dump
-with open('databases.json', 'r') as file:
-    database_names = json.load(file)
-# Backup metadata table
+
 meta_db = 'backup'
 meta_table = 'tbl_backup'
-# Google Drive settings
+
 SERVICE_ACCOUNT_FILE = 'service-account.json'
 DRIVE_FOLDER_ID = '1ycYMVz13jgzFuE9toVSkDdKpUeIMwU-s'
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
@@ -37,12 +35,11 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 
 def compute_hash(path):
-    """Compute SHA256 hash of a file."""
-    sha = hashlib.sha256()
+    hasher = xxhash.xxh64()
     with open(path, 'rb') as f:
         for chunk in iter(lambda: f.read(8192), b""):
-            sha.update(chunk)
-    return sha.hexdigest()
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 
 def get_db_connection(database=None):
@@ -55,22 +52,23 @@ def get_db_connection(database=None):
     )
 
 
-def get_previous_hash(name):
+def get_previous_hash(logical_name):
     conn = get_db_connection(meta_db)
     with conn.cursor() as cur:
-        cur.execute(f"SELECT hash FROM {meta_table} WHERE name=%s", (name,))
+        cur.execute(
+            f"SELECT hash FROM {meta_table} WHERE name=%s", (logical_name,))
         row = cur.fetchone()
     conn.close()
     return row[0] if row else None
 
 
-def update_hash(name, new_hash):
+def update_hash(logical_name, new_hash):
     conn = get_db_connection(meta_db)
     with conn.cursor() as cur:
         cur.execute(
             f"INSERT INTO {meta_table}(name, hash) VALUES(%s, %s) "
             "ON DUPLICATE KEY UPDATE hash=VALUES(hash)",
-            (name, new_hash)
+            (logical_name, new_hash)
         )
     conn.close()
 
@@ -83,7 +81,6 @@ def get_drive_service():
 
 
 def upload_to_drive(local_path, folder_id, service):
-    """Uploads or updates a file in Google Drive folder."""
     filename = os.path.basename(local_path)
     query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
     resp = service.files().list(q=query, fields='files(id)').execute()
@@ -99,24 +96,26 @@ def upload_to_drive(local_path, folder_id, service):
 
 
 def backup_directories(service):
+    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     for directory in directories_to_backup:
         if not os.path.isdir(directory['path']):
             continue
-        name = directory['name']
-        zip_name = f"{name}_{os.path.basename(directory['path'])}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.zip"
+        logical_name = f"{directory['name']}_{os.path.basename(directory['path'])}"
+        zip_name = f"{logical_name}_{timestamp}.zip"
         shutil.make_archive(zip_name[:-4], 'zip', directory['path'])
         h = compute_hash(zip_name)
-        prev = get_previous_hash(zip_name)
+        prev = get_previous_hash(logical_name)
         if h != prev:
             upload_to_drive(zip_name, DRIVE_FOLDER_ID, service)
-            update_hash(zip_name, h)
+            update_hash(logical_name, h)
         os.remove(zip_name)
 
 
 def backup_databases(service):
+    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     for db in database_names:
-        dump_file = f"{db}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.sql"
-        # Use reproducible dump without timestamps or comments
+        logical_name = db
+        dump_file = f"{logical_name}_{timestamp}.sql"
         cmd = [
             'mysqldump',
             '--skip-dump-date',
@@ -128,10 +127,10 @@ def backup_databases(service):
         with open(dump_file, 'wb') as f:
             subprocess.run(cmd, stdout=f, check=True)
         h = compute_hash(dump_file)
-        prev = get_previous_hash(dump_file)
+        prev = get_previous_hash(logical_name)
         if h != prev:
             upload_to_drive(dump_file, DRIVE_FOLDER_ID, service)
-            update_hash(dump_file, h)
+            update_hash(logical_name, h)
         os.remove(dump_file)
 
 
