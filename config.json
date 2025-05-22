@@ -4,11 +4,22 @@
     "service_account_file": "service-account.json",
     "directories": [
         {
-            "name": "School Management System",
-            "path": "C:\\xampp\\htdocs\\uploads"
+            "name": "Certify",
+            "path": "/home/chatbot/Certify/public/images"
+        },
+        {
+            "name": "Event Management System",
+            "path": "/home/chatbot/event.khwopa.edu.np/storage/app/public/images"
+        },
+        {
+            "name": "Test",
+            "path": "/var/www/test/uploads"
         }
     ],
     "databases": [
-        "digital_sikshya"
+        "certify",
+        "event_management_system",
+        "khwopachat",
+        "test"
     ]
 }
