@@ -1,3 +1,4 @@
 google-auth
 google-api-python-client
 pymysql
+python-dotenv

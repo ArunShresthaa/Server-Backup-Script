@@ -4,26 +4,27 @@ import shutil
 import subprocess
 import time
 import pymysql
+import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ==== Configuration ====
 # Folders to zip
-directories_to_backup = [
-    {
-        'name': 'School Management System',
-        'path': 'C:\\xampp\\htdocs\\uploads',
-    }
-]
+with open('directories.json', 'r') as file:
+    directories_to_backup = json.load(file)
 # MySQL settings
 db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '',
+    'host': os.getenv('DB_HOSTNAME'),
+    'user': os.getenv('DB_USERNAME'),
+    'password': os.getenv('DB_PASSWORD')
 }
 # Databases to dump
-database_names = ['digital_sikshya']
+with open('databases.json', 'r') as file:
+    database_names = json.load(file)
 # Backup metadata table
 meta_db = 'backup'
 meta_table = 'tbl_backup'
