@@ -102,7 +102,7 @@ def backup_directories(service):
         if not os.path.isdir(directory['path']):
             continue
         name = directory['name']
-        zip_name = f"{name}_{time.strftime('%Y%m%d')}.zip"
+        zip_name = f"{name}_{os.path.basename(directory['path'])}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.zip"
         shutil.make_archive(zip_name[:-4], 'zip', directory['path'])
         h = compute_hash(zip_name)
         prev = get_previous_hash(zip_name)
@@ -114,7 +114,7 @@ def backup_directories(service):
 
 def backup_databases(service):
     for db in database_names:
-        dump_file = f"{db}_{time.strftime('%Y%m%d')}.sql"
+        dump_file = f"{db}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.sql"
         # Use reproducible dump without timestamps or comments
         cmd = [
             'mysqldump',
