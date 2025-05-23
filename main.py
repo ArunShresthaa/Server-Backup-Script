@@ -196,7 +196,7 @@ def main():
     logging.info("Backup process started.")
     try:
         service = get_drive_service()
-        date_str = time.strftime('%Y-%m-%d')
+        date_str = time.strftime('%Y-%m-%d_%H-%M-%S')
         dated_folder_id = get_or_create_drive_folder_by_name(
             date_str, DRIVE_FOLDER_ID, service)
 
