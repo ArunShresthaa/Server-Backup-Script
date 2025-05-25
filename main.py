@@ -31,6 +31,7 @@ try:
         SERVICE_ACCOUNT_FILE = config['service_account_file']
         directories_to_backup = config['directories']
         database_names = config['databases']
+        excluded_tables = config.get('excluded_tables', {})
 except Exception as e:
     logging.error(f"Failed to load configuration: {e}")
     raise
@@ -169,6 +170,19 @@ def backup_databases(service, folder_id):
             f"-p{db_config['password']}",
             db
         ]
+
+        # Process tables with no data (structure only)
+        tables_no_data = excluded_tables.get(db, [])
+        if tables_no_data:
+            logging.info(
+                f"Excluding data for tables in {db}: {', '.join(tables_no_data)}")
+            # First create a full schema dump with all tables
+            for table in tables_no_data:
+                # Add individual no-data tables with specific options
+                cmd.extend([
+                    '--ignore-table-data',
+                    f'{db}.{table}'
+                ])
 
         logging.info(f"Dumping database: {db} → {dump_file}")
         try:
